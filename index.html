@@ -143,11 +143,13 @@ body.inv .pv{display:none!important}body.inv #sTr th:nth-child(n+8),body.inv #sT
 
   <section class="card pv" id="plan" hidden>
     <h2>Plan de trading <span class="d" id="plSt"></span></h2>
-    <p class="d" style="margin-bottom:6px">Les 8 sections d’un plan complet. Une fois verrouillé, il devient la référence : chaque trade suivant est comparé à ce plan.</p>
+    <p class="d" id="plNote" style="margin-bottom:6px"></p>
+    <div id="plAdm" hidden style="margin:10px 0"><h3 style="margin-bottom:8px">Règles communes obligatoires (modèle admin)</h3><div id="plTplF" class="grid k"></div><div class="bar" style="margin-top:8px"><button id="plTplSave">Publier le modèle</button><span class="d" id="plTplMsg"></span></div></div>
     <div id="plForm"></div>
-    <div class="bar" style="margin-top:14px"><button id="plLock" class="pri">Verrouiller et signer le plan</button><button id="plNew" hidden>Créer une nouvelle version</button><span id="plMsg" class="d"></span></div>
+    <div class="bar" id="plBar" style="margin-top:14px"></div>
     <div id="plAud" class="grid k" style="margin-top:14px"></div>
     <div class="wrap"><table style="min-width:520px"><thead><tr><th>Date</th><th>Actif</th><th>Écarts au plan</th><th>Déclaré</th></tr></thead><tbody id="plTb"></tbody></table></div>
+    <h3 style="margin:14px 0 6px">Historique</h3><div class="d" id="plHist"></div>
   </section>
 
   <section class="card"><h2 id="eqTitle">Évolution du compte</h2><div class="chart" style="height:320px"><canvas id="cEq"></canvas></div></section>
@@ -175,7 +177,7 @@ body.inv .pv{display:none!important}body.inv #sTr th:nth-child(n+8),body.inv #sT
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, doc, onSnapshot, getDocs, setDoc, deleteDoc, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, getDocs, setDoc, deleteDoc, writeBatch, serverTimestamp, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const CFG = { apiKey:"AIzaSyDFfsaI85dsAfAqigH0HyKgcGzNuTDQGG8", authDomain:"trading-das.firebaseapp.com", projectId:"trading-das",
   storageBucket:"trading-das.firebasestorage.app", messagingSenderId:"1034073455746", appId:"1:1034073455746:web:43363d623668164984089b" };
@@ -423,7 +425,7 @@ function norm(id, acct, t) {
 let unsubAcc = null;
 function clearData() {
   if (unsubAcc) unsubAcc(); unsubAcc = null; Object.values(U).forEach(a => a.forEach(f => f())); [A, T, N, U].forEach(o => Object.keys(o).forEach(k => delete o[k]));
-  msgOff(); started = false; cur = 'ALL'; $('tTr').innerHTML = ''; $('tPos').innerHTML = ''; $('tabs').innerHTML = '';
+  msgOff(); planOff(); started = false; cur = 'ALL'; $('tTr').innerHTML = ''; $('tPos').innerHTML = ''; $('tabs').innerHTML = '';
 }
 function stop() {
   clearData();
@@ -435,7 +437,7 @@ function stop() {
   document.body.classList.remove('ro', 'inv', 'home'); home = false; Object.keys(H).forEach(k => delete H[k]);
 }
 function start() {
-  if (started) return; started = true; initMsg();
+  if (started) return; started = true; initMsg(); subPlan();
   unsubAcc = onSnapshot(collection(db, ...P('accounts')), s => {
     Object.keys(A).forEach(k => delete A[k]);
     s.forEach(d => { A[d.id] = { id:d.id, ...d.data() }; attach(d.id); });
@@ -570,10 +572,29 @@ $('plForm').innerHTML = PLS.map(([h, fs], i) => `<h3 style="margin:16px 0 8px">$
   + `<div class="grid ${fs.some(f => f[2] === 't') ? 'two' : 'k'}">` + fs.map(([k, l, t]) => { PLF['pl_' + k] = k; if (t === 'n') PLN.push('pl_' + k);
     return `<div><div class="l">${l}</div>${t === 't' ? `<textarea id="pl_${k}"></textarea>` : `<input id="pl_${k}"${t === 'n' ? ' type="number" step="any"' : ''}>`}</div>`; }).join('') + '</div>').join('');
 const lst = x => String(x || '').split(',').map(v => v.trim().toUpperCase()).filter(Boolean);
-function planCheck(list, p, start) {
-  const day = {}, wk = {}, AS = lst(p.assets), SE = lst(p.setups), BE = lst(p.banEmo);
+const PL = { un:null, ul:null, ut:null, vs:[], uls:[], tpl:null, eff:null, list:[], start:0 };
+const PLC = [['risk','Risque max par trade (%)','n'],['dayLoss','Perte max par jour (%)','n'],['weekLoss','Perte max par semaine (%)','n'],['maxDay','Trades max par jour','n'],['lot','Lot max','n'],['stopLoss','Stop du jour après N pertes','n'],['minRR','R/R minimum','n'],['banEmo','États interdits (virgules)','i']];
+$('plTplF').innerHTML = PLC.map(([k, l, t]) => `<div><div class="l">${l}</div><input id="plc_${k}"${t === 'n' ? ' type="number" step="any"' : ''}></div>`).join('');
+const PLL = { none:'Aucun plan', draft:'Brouillon', submitted:'En attente de validation', changes_requested:'Corrections demandées', rejected:'Refusé', locked:'Verrouillé', archived:'Archivé' };
+const num = x => parseFloat(x) || 0, tsd = t => t && t.toDate ? t.toDate().toLocaleString('fr-FR') : '…';
+const effOf = c => { const cm = (c || {}).common || {}, cu = (c || {}).custom || {}, o = { assets:cu.assets, setups:cu.setups, minRR:Math.max(num(cm.minRR), num(cu.minRR)), banEmo:[cm.banEmo, cu.banEmo].filter(Boolean).join(',') };
+  ['risk', 'dayLoss', 'weekLoss', 'maxDay', 'lot', 'stopLoss'].forEach(k => { const x = num(cm[k]), y = num(cu[k]); o[k] = x && y ? Math.min(x, y) : x || y; }); return o; };
+const plansEff = () => PL.vs.filter(v => v.lockedAt && (v.status === 'locked' || v.status === 'archived') && v.lockedAt.toDate)
+  .map(v => ({ ...effOf(v.content), v:v.v, from:v.lockedAt.toDate().toLocaleDateString('sv-SE') })).sort((a, b) => a.from < b.from ? -1 : 1);
+const plGet = () => { const o = {}; Object.keys(PLF).forEach(id => { const x = $(id).value.trim(); o[PLF[id]] = PLN.includes(id) ? num(x) : x; }); return o; };
+function planOff() { ['un', 'ul', 'ut'].forEach(k => { if (PL[k]) PL[k](); PL[k] = null; }); PL.vs = []; PL.uls = []; PL.tpl = null; PL.eff = null; }
+function subPlan() {
+  planOff(); if (!viewUid) return;
+  PL.un = onSnapshot(query(collection(db, 'plans', viewUid, 'versions'), orderBy('v', 'desc')), sn => { PL.vs = sn.docs.map(d => ({ id:d.id, ...d.data() })); renderPlan(); }, () => {});
+  PL.ul = onSnapshot(collection(db, 'plans', viewUid, 'unlocks'), sn => { PL.uls = sn.docs.map(d => d.data()).sort((a, b) => (b.fromVersion || 0) - (a.fromVersion || 0)); renderPlan(); }, () => {});
+  PL.ut = onSnapshot(doc(db, 'config', 'planTemplate'), sn => { PL.tpl = sn.exists() ? sn.data() : null; renderPlan(); }, () => {});
+}
+function planCheck(list, plans, start) {
+  const day = {}, wk = {};
   const W = d => { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x.toLocaleDateString('sv-SE'); };
-  return list.filter(t => t.date >= p.from).map(t => {
+  return list.map(t => {
+    const p = plans.slice().reverse().find(x => x.from <= t.date); if (!p) return null;
+    const AS = lst(p.assets), SE = lst(p.setups), BE = lst(p.banEmo);
     const d = day[t.date] = day[t.date] || { n:0, loss:0, pnl:0 }, w = wk[W(t.date)] = wk[W(t.date)] || { pnl:0 }, v = [], su = t.setup.toUpperCase();
     if (AS.length && !AS.some(x => t.asset.toUpperCase().startsWith(x))) v.push('Actif hors plan');
     if (SE.length && !su) v.push('Setup non renseigné'); else if (SE.length && !SE.some(x => su.includes(x))) v.push('Setup hors plan');
@@ -585,48 +606,70 @@ function planCheck(list, p, start) {
     if (+p.weekLoss > 0 && start > 0 && w.pnl <= -start * p.weekLoss / 100) v.push('Trade après la limite de perte de la semaine');
     if (BE.length && BE.includes(t.emo.toUpperCase())) v.push('Trade en état interdit (' + t.emo + ')');
     d.n++; d.loss = t.pnl < 0 ? d.loss + 1 : 0; d.pnl += t.pnl; w.pnl += t.pnl;
-    return { t, v };
-  });
+    return { t, v, ver:p.v };
+  }).filter(Boolean);
 }
-function drawPlan(single, list, start) {
-  $('plan').hidden = !single; if (!single) return;
-  const a = A[cur], p = a.tradingPlan || {}, lk = !!p.lockedAt;
-  Object.keys(PLF).forEach(id => { const el = $(id); el.readOnly = locked() || lk; if (document.activeElement !== el) el.value = p[PLF[id]] ?? ''; });
-  $('plCap').textContent = fmt(+a.startBalance || start);
-  $('plLock').hidden = lk; $('plNew').hidden = !lk;
-  $('plSt').textContent = lk ? `· Version ${p.v || 1} verrouillée le ${new Date(p.lockedAt).toLocaleDateString('fr-FR')}` : '· Brouillon : aucun trade n’est évalué tant qu’il n’est pas verrouillé';
-  const res = lk ? planCheck(list, p, +a.startBalance || start) : [], n = res.length, ok = res.filter(r => !r.v.length).length;
+function drawPlan(single, list, start) { PL.list = list; PL.start = start; renderPlan(); }
+function renderPlan() {
+  $('plan').hidden = !viewUid; if (!viewUid) return;
+  const v = PL.vs[0], st = v ? v.status : 'none', mine = viewUid === uid && !locked(), ed = mine && (st === 'draft' || st === 'changes_requested'), adm = isAdmin && viewUid !== uid;
+  const act = PL.vs.find(x => x.status === 'locked'); PL.eff = act ? effOf(act.content) : null;
+  $('plSt').textContent = v ? `· Version ${v.v} · ${PLL[st]}` : '· Aucun plan';
+  const cm = (v && v.content && v.content.common) || (PL.tpl && PL.tpl.rules) || {}, sm = PLC.filter(([k]) => cm[k]).map(([k, l]) => `${l} : ${cm[k]}`).join(' · ');
+  $('plNote').textContent = [sm && 'Règles communes de l’admin : ' + sm, v && v.note && (st === 'changes_requested' || st === 'rejected') ? 'Retour de l’admin : ' + v.note : '', st === 'locked' ? 'Plan verrouillé : seul l’admin peut le déverrouiller, avec un motif.' : ''].filter(Boolean).join('  |  ');
+  const cu = (v && v.content && v.content.custom) || {};
+  Object.keys(PLF).forEach(id => { const el = $(id); el.readOnly = !ed; if (document.activeElement !== el) el.value = cu[PLF[id]] ?? ''; });
+  $('plAdm').hidden = !isAdmin; if (isAdmin) PLC.forEach(([k]) => { const el = $('plc_' + k); if (document.activeElement !== el) el.value = (PL.tpl && PL.tpl.rules && PL.tpl.rules[k]) ?? ''; });
+  let b = '';
+  if (mine && st === 'none') b = '<button class="pri" data-a="create">Créer mon plan</button>';
+  if (ed) b = '<button data-a="save">Enregistrer le brouillon</button><button class="pri" data-a="submit">Soumettre à l’admin</button>';
+  if (adm && st === 'submitted') b = '<button class="pri" data-a="lock">Approuver et verrouiller</button><button data-a="chg">Demander des corrections</button><button data-a="rej">Refuser</button>';
+  if (adm && st === 'locked') b = '<button data-a="unlock">Déverrouiller (motif obligatoire)</button>';
+  if (adm && st === 'rejected') b = '<button data-a="newv">Ouvrir une nouvelle version</button>';
+  $('plBar').innerHTML = b;
+  const plans = plansEff(), lk = plans.length > 0, res = lk ? planCheck(PL.list || [], plans, PL.start || 0) : [], n = res.length, ok = res.filter(r => !r.v.length).length;
   const dec = res.filter(r => r.t.plan), decOk = dec.filter(r => r.t.plan === 'Oui').length, gap = res.filter(r => r.t.plan === 'Oui' && r.v.length);
-  const kp = (l, v, dd, c) => `<div class="card"><div class="l">${l}</div><div class="v ${c || 'b'}">${v}</div><div class="d">${dd}</div></div>`;
-  $('plAud').innerHTML = lk ? kp('Conformité mesurée', n ? Math.round(ok / n * 100) + ' %' : '—', `${ok}/${n} trades conformes depuis le ${esc(p.from)}`)
+  const kp = (l, x, dd, c) => `<div class="card"><div class="l">${l}</div><div class="v ${c || 'b'}">${x}</div><div class="d">${dd}</div></div>`;
+  $('plAud').innerHTML = lk ? kp('Conformité mesurée', n ? Math.round(ok / n * 100) + ' %' : '—', `${ok}/${n} trades conformes depuis le ${esc(plans[0].from)}`)
     + kp('Conformité déclarée', dec.length ? Math.round(decOk / dec.length * 100) + ' %' : '—', `${dec.length} trade(s) qualifiés`)
-    + kp('Déclarés « Oui » mais hors plan', gap.length, 'Écart entre ce que vous dites et ce que montrent les chiffres', gap.length ? 'r' : 'b')
+    + kp('Déclarés « Oui » mais hors plan', gap.length, 'Écart entre ce qui est déclaré et ce que montrent les chiffres', gap.length ? 'r' : 'b')
     + kp('Journal : à qualifier', res.filter(r => !r.t.plan).length, 'Trades sans « Plan respecté » renseigné') : '';
   const bad = res.filter(r => r.v.length).reverse().slice(0, 15);
-  $('plTb').innerHTML = !lk ? '<tr><td colspan="4" class="empty">Verrouillez le plan pour lancer le contrôle.</td></tr>'
-    : bad.length ? bad.map(r => `<tr><td>${esc(r.t.date)}</td><td><b>${esc(r.t.asset)}</b></td><td>${esc(r.v.join(' · '))}</td><td>${esc(r.t.plan || '—')}</td></tr>`).join('')
-    : `<tr><td colspan="4" class="empty">${n ? 'Aucun écart au plan.' : 'Aucun trade depuis la signature du plan.'}</td></tr>`;
+  $('plTb').innerHTML = !lk ? '<tr><td colspan="4" class="empty">Aucun plan verrouillé : aucun trade n’est évalué.</td></tr>'
+    : bad.length ? bad.map(r => `<tr><td>${esc(r.t.date)} <span class="d">(v${r.ver})</span></td><td><b>${esc(r.t.asset)}</b></td><td>${esc(r.v.join(' · '))}</td><td>${esc(r.t.plan || '—')}</td></tr>`).join('')
+    : `<tr><td colspan="4" class="empty">${n ? 'Aucun écart au plan.' : 'Aucun trade depuis le verrouillage.'}</td></tr>`;
+  $('plHist').innerHTML = PL.vs.map(x => `v${x.v} · ${PLL[x.status]}${x.lockedAt ? ' · verrouillé le ' + tsd(x.lockedAt) : ''}`).concat(PL.uls.map(u => `Déverrouillage v${u.fromVersion} → v${u.toVersion} le ${tsd(u.at)} : ${u.reason}`)).map(x => `<div>${esc(x)}</div>`).join('') || 'Aucun historique.';
 }
-const savePlan = patch => { if (locked()) return; setDoc(doc(db, ...P('accounts', cur)), { tradingPlan: patch }, { merge:true }); };
-Object.keys(PLF).forEach(id => $(id).onchange = () => { const p = (A[cur] || {}).tradingPlan || {}; if (p.lockedAt) return;
-  savePlan({ [PLF[id]]: PLN.includes(id) ? (parseFloat($(id).value) || 0) : $(id).value.trim() }); });
-$('plLock').onclick = () => {
-  const p = (A[cur] || {}).tradingPlan || {};
-  if (!p.entry || !p.sl || !p.tp || !(+p.risk > 0)) { $('plMsg').textContent = 'Complétez au minimum : règles d’entrée, SL, TP et risque max par trade.'; return; }
-  if (!confirm('Verrouiller ce plan ? Il devient votre référence : seuls les trades à partir d’aujourd’hui seront évalués.')) return;
-  $('plMsg').textContent = ''; savePlan({ lockedAt: Date.now(), from: new Date().toLocaleDateString('sv-SE'), v: p.v || 1 });
+$('plBar').onclick = async e => {
+  const a = (e.target.closest('button') || {}).dataset; if (!a) return;
+  const v = PL.vs[0], P = (...x) => doc(db, 'plans', viewUid, ...x), V = n => P('versions', String(n)), stamp = { decidedAt:serverTimestamp(), decidedBy:uid };
+  try {
+    if (a.a === 'create') await setDoc(V(1), { v:1, status:'draft', templateVersion:(PL.tpl && PL.tpl.version) || 0, content:{ common:(PL.tpl && PL.tpl.rules) || {}, custom:{}, checklist:{ custom:[] } } });
+    else if (a.a === 'save') await setDoc(V(v.v), { content:{ custom:plGet() } }, { merge:true });
+    else if (a.a === 'submit') { const c = plGet(); if (!c.entry || !c.sl || !c.tp || !(c.risk > 0)) { alert('Complétez au minimum : règles d’entrée, SL, TP et risque max par trade.'); return; }
+      await setDoc(V(v.v), { status:'submitted', submittedAt:serverTimestamp(), content:{ custom:c } }, { merge:true }); }
+    else if (a.a === 'lock') { if (confirm('Approuver et verrouiller ce plan ? Il deviendra la référence de contrôle.')) await setDoc(V(v.v), { status:'locked', lockedAt:serverTimestamp(), ...stamp }, { merge:true }); }
+    else if (a.a === 'chg' || a.a === 'rej') { const note = (prompt('Motif ou corrections demandées :') || '').trim(); if (!note) return;
+      await setDoc(V(v.v), { status:a.a === 'chg' ? 'changes_requested' : 'rejected', note, ...stamp }, { merge:true }); }
+    else if (a.a === 'unlock') { const reason = (prompt('Motif du déverrouillage (10 caractères minimum) :') || '').trim(); if (reason.length < 10) { alert('Motif trop court.'); return; }
+      const id = doc(collection(db, 'plans', viewUid, 'unlocks')).id, bt = writeBatch(db);
+      bt.set(P('unlocks', id), { by:uid, traderUid:viewUid, fromVersion:v.v, toVersion:v.v + 1, reason, at:serverTimestamp() });
+      bt.update(V(v.v), { status:'archived', archivedAt:serverTimestamp(), unlockId:id });
+      bt.set(V(v.v + 1), { v:v.v + 1, status:'draft', templateVersion:v.templateVersion || 0, content:v.content }); await bt.commit(); }
+    else if (a.a === 'newv') await setDoc(V(v.v + 1), { v:v.v + 1, status:'draft', templateVersion:v.templateVersion || 0, content:v.content });
+  } catch (_) { alert('Action refusée : les rules des plans ne sont probablement pas encore publiées.'); }
 };
-$('plNew').onclick = () => {
-  const { history, ...snap } = (A[cur] || {}).tradingPlan || {};
-  if (!confirm('Créer une nouvelle version ? L’actuelle est archivée et le contrôle s’arrête jusqu’au prochain verrouillage.')) return;
-  savePlan({ history: (history || []).concat([snap]), lockedAt: null, v: (snap.v || 1) + 1 });
+$('plTplSave').onclick = async () => {
+  const r = {}; PLC.forEach(([k, , t]) => { const x = $('plc_' + k).value.trim(); if (x) r[k] = t === 'n' ? num(x) : x; });
+  try { await setDoc(doc(db, 'config', 'planTemplate'), { version:((PL.tpl && PL.tpl.version) || 0) + 1, rules:r, updatedAt:serverTimestamp() }); $('plTplMsg').textContent = 'Modèle publié : il s’applique aux nouveaux plans.'; }
+  catch (_) { alert('Refusé : les rules des plans ne sont probablement pas encore publiées.'); }
 };
 function slTp(p) {
   if (!('sl' in p) && !('tp' in p)) return '<td class="d" colspan="4">SL/TP non transmis par l’EA</td>';
   const sl = +p.sl, tp = +p.tp, o = +p.o, buy = p.t === 'BUY', risk = buy ? o - sl : sl - o, rew = buy ? tp - o : o - tp, al = [];
   if (!(sl > 0)) al.push('SL manquant'); else if (risk <= 0) al.push('SL mal placé');
   if (!(tp > 0)) al.push('TP manquant');
-  const rr = sl > 0 && tp > 0 && risk > 0 && rew > 0 ? rew / risk : null, mn = +(((A[p.id] || {}).tradingPlan || {}).minRR) || 0;
+  const rr = sl > 0 && tp > 0 && risk > 0 && rew > 0 ? rew / risk : null, mn = +((PL.eff || {}).minRR) || 0;
   if (rr != null && mn > 0 && rr < mn) al.push('R/R sous le plan');
   return `<td>${sl > 0 ? sl : '—'}</td><td>${tp > 0 ? tp : '—'}</td><td><b>${rr != null ? rr.toFixed(2) + 'R' : '—'}</b></td><td>${al.length ? al.map(x => `<span class="tag sell">${x}</span>`).join(' ') : '<span class="tag buy">OK</span>'}</td>`;
 }
