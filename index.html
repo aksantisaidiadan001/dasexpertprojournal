@@ -24,12 +24,12 @@ main{max-width:1280px;margin:18px auto;padding:0 16px;display:grid;gap:14px}
 button{font:inherit;font-size:12px;font-weight:600;color:var(--tx);background:var(--p);border:1px solid var(--ln);border-radius:7px;padding:7px 12px;cursor:pointer}
 button:hover{border-color:#3a4656}button.on{border-color:var(--o);color:var(--o)}button.pri{background:var(--o);color:#1a1405;border-color:var(--o)}
 :focus-visible{outline:2px solid var(--b);outline-offset:2px}
-input,select{font:inherit;font-size:13px;color:var(--tx);background:var(--bg);border:1px solid var(--ln);border-radius:6px;padding:6px 8px;width:100%}
-input:focus,select:focus{outline:none;border-color:var(--o)}
+input,select,textarea{font:inherit;font-size:13px;color:var(--tx);background:var(--bg);border:1px solid var(--ln);border-radius:6px;padding:6px 8px;width:100%}
+textarea{min-height:64px;resize:vertical}input:focus,select:focus,textarea:focus{outline:none;border-color:var(--o)}
 td input,td select{padding:4px 6px;min-width:90px}
 #adminSel{width:auto;min-width:190px;border-color:var(--o);color:var(--o)}
 #tBoard tr{cursor:pointer}#tBoard tr:hover td{background:var(--p2)}
-.ro td input,.ro td select,.ro #rules input{pointer-events:none;opacity:.6}
+.ro #plan input,.ro #plan textarea,.ro #plan button,.ro td input,.ro td select,.ro #rules input{pointer-events:none;opacity:.6}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--r);margin-right:6px}.dot.on{background:var(--g)}
 .chart{position:relative;height:280px}
 .wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px;min-width:900px}
@@ -43,6 +43,11 @@ body.inv .pv{display:none!important}body.inv #sTr th:nth-child(n+8),body.inv #sT
 #home{display:none}body.home #home{display:block}body.home main>section:not(#home){display:none!important}body.home #tabs,body.home #bCsv{display:none}.hm{cursor:pointer}.hm:hover{border-color:#3a4656}
 .ro.op td input,.ro.op td select{pointer-events:auto;opacity:1}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+#msgp{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:var(--p);border-left:1px solid var(--ln);z-index:50;display:flex;flex-direction:column;padding:14px;gap:10px}
+#msgp[hidden]{display:none}#mList{flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.mm{background:var(--bg);border:1px solid var(--ln);border-radius:8px;padding:8px 10px;font-size:13px;white-space:pre-wrap;word-break:break-word}
+.mm small{display:block;color:var(--mu);font-size:11px}.mm.me{border-color:var(--o)}
+#bMsgN:not(:empty){background:#f0616d;color:#fff;border-radius:9px;padding:0 6px;margin-left:5px;font-size:11px}
 </style>
 </head>
 <body>
@@ -60,7 +65,7 @@ body.inv .pv{display:none!important}body.inv #sTr th:nth-child(n+8),body.inv #sT
 <div id="app" hidden>
 <header>
   <h1>Journal de Trading Pro<small>Suivi des comptes en direct</small></h1>
-  <div class="bar"><select id="adminSel" hidden aria-label="Choisir un trader"></select><button id="bAdm" class="pri" hidden>Console admin</button><div id="tabs" class="bar"></div><button id="bHome" hidden>← Mes portefeuilles</button><span id="who" class="d"></span><button id="bCsv" class="pv">Exporter CSV</button><button id="bOut">Déconnexion</button></div>
+  <div class="bar"><select id="adminSel" hidden aria-label="Choisir un trader"></select><button id="bMsg">Messages<span id="bMsgN"></span></button><button id="bAdm" class="pri" hidden>Console admin</button><div id="tabs" class="bar"></div><button id="bHome" hidden>← Mes portefeuilles</button><span id="who" class="d"></span><button id="bCsv" class="pv">Exporter CSV</button><button id="bOut">Déconnexion</button></div>
 </header>
 <main>
   <section class="card pv" id="banner" hidden>
@@ -136,10 +141,19 @@ body.inv .pv{display:none!important}body.inv #sTr th:nth-child(n+8),body.inv #sT
     </div>
   </section>
 
+  <section class="card pv" id="plan" hidden>
+    <h2>Plan de trading <span class="d" id="plSt"></span></h2>
+    <p class="d" style="margin-bottom:6px">Les 8 sections d’un plan complet. Une fois verrouillé, il devient la référence : chaque trade suivant est comparé à ce plan.</p>
+    <div id="plForm"></div>
+    <div class="bar" style="margin-top:14px"><button id="plLock" class="pri">Verrouiller et signer le plan</button><button id="plNew" hidden>Créer une nouvelle version</button><span id="plMsg" class="d"></span></div>
+    <div id="plAud" class="grid k" style="margin-top:14px"></div>
+    <div class="wrap"><table style="min-width:520px"><thead><tr><th>Date</th><th>Actif</th><th>Écarts au plan</th><th>Déclaré</th></tr></thead><tbody id="plTb"></tbody></table></div>
+  </section>
+
   <section class="card"><h2 id="eqTitle">Évolution du compte</h2><div class="chart" style="height:320px"><canvas id="cEq"></canvas></div></section>
 
   <section class="grid two">
-    <div class="card"><h2>Positions ouvertes</h2><div class="wrap"><table style="min-width:520px"><thead><tr><th>Compte</th><th>Actif</th><th>Sens</th><th>Lots</th><th>Entrée</th><th>Flottant</th></tr></thead><tbody id="tPos"></tbody></table></div></div>
+    <div class="card"><h2>Positions ouvertes</h2><div class="wrap"><table style="min-width:520px"><thead><tr><th>Compte</th><th>Actif</th><th>Sens</th><th>Lots</th><th>Entrée</th><th>Flottant</th><th>SL</th><th>TP</th><th>R/R</th><th>Alerte</th></tr></thead><tbody id="tPos"></tbody></table></div></div>
     <div class="card"><h2>Statistiques</h2><div class="grid" id="stats"></div></div>
     <div class="card"><h2>Résultat par mois</h2><div class="chart"><canvas id="cMonth"></canvas></div></div>
     <div class="card pv"><h2>Résultat par état émotionnel</h2><div class="chart"><canvas id="cEmo"></canvas></div></div>
@@ -150,12 +164,18 @@ body.inv .pv{display:none!important}body.inv #sTr th:nth-child(n+8),body.inv #sT
     <div class="wrap"><table><thead><tr><th>Date</th><th>Compte</th><th>Actif</th><th>Sens</th><th>Lots</th><th>Résultat</th><th>R/R</th><th>Setup</th><th>Plan respecté</th><th>Émotion</th><th>Notes</th></tr></thead><tbody id="tTr"></tbody></table></div>
   </section>
 </main>
+<aside id="msgp" hidden aria-label="Messagerie">
+  <div class="bar" style="justify-content:space-between"><div id="mTabs" class="bar"></div><button id="mClose" aria-label="Fermer">✕</button></div>
+  <select id="mSel" hidden aria-label="Catégorie"></select>
+  <div id="mList"></div>
+  <div id="mForm" class="bar"><textarea id="mTxt" maxlength="1000" style="min-height:44px;flex:1"></textarea><button id="mSend" class="pri">Envoyer</button></div>
+</aside>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, doc, onSnapshot, getDocs, setDoc, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, doc, onSnapshot, getDocs, setDoc, deleteDoc, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const CFG = { apiKey:"AIzaSyDFfsaI85dsAfAqigH0HyKgcGzNuTDQGG8", authDomain:"trading-das.firebaseapp.com", projectId:"trading-das",
   storageBucket:"trading-das.firebasestorage.app", messagingSenderId:"1034073455746", appId:"1:1034073455746:web:43363d623668164984089b" };
@@ -403,7 +423,7 @@ function norm(id, acct, t) {
 let unsubAcc = null;
 function clearData() {
   if (unsubAcc) unsubAcc(); unsubAcc = null; Object.values(U).forEach(a => a.forEach(f => f())); [A, T, N, U].forEach(o => Object.keys(o).forEach(k => delete o[k]));
-  started = false; cur = 'ALL'; $('tTr').innerHTML = ''; $('tPos').innerHTML = ''; $('tabs').innerHTML = '';
+  msgOff(); started = false; cur = 'ALL'; $('tTr').innerHTML = ''; $('tPos').innerHTML = ''; $('tabs').innerHTML = '';
 }
 function stop() {
   clearData();
@@ -415,7 +435,7 @@ function stop() {
   document.body.classList.remove('ro', 'inv', 'home'); home = false; Object.keys(H).forEach(k => delete H[k]);
 }
 function start() {
-  if (started) return; started = true;
+  if (started) return; started = true; initMsg();
   unsubAcc = onSnapshot(collection(db, ...P('accounts')), s => {
     Object.keys(A).forEach(k => delete A[k]);
     s.forEach(d => { A[d.id] = { id:d.id, ...d.data() }; attach(d.id); });
@@ -484,7 +504,7 @@ function draw() {
     ['Meilleur / pire trade', a.n ? sg(a.best) + ' / ' + sg(a.worst) : '—', ''], ['Séries max (gains / pertes)', a.n ? a.mxW + ' / ' + a.mxL : '—', '']];
   $('stats').innerHTML = rows.map(r => `<div class="row"><span>${r[0]}</span><b class="${r[2]}">${r[1]}</b></div>`).join('');
 
-  rules(single, start, eq, bal); invCard(eq, start, a);
+  rules(single, start, eq, bal); drawPlan(single, list, start); invCard(eq, start, a);
 
   const sn = single ? (N[cur] || []) : [];
   if (single && sn.length > 1) {
@@ -498,9 +518,9 @@ function draw() {
   }
   let [k, d] = barSet(a.month); chart('cMonth', 'bar', k, d); [k, d] = barSet(a.emo); chart('cEmo', 'bar', k, d);
 
-  const pos = ids.flatMap(i => { try { return JSON.parse(A[i].positions || '[]').map(p => ({ ...p, a:an(i) })); } catch (_) { return []; } });
-  $('tPos').innerHTML = pos.length ? pos.map(p => `<tr><td>${esc(p.a)}</td><td><b>${esc(p.s)}</b></td><td><span class="tag ${p.t === 'BUY' ? 'buy' : 'sell'}">${p.t}</span></td><td>${p.v}</td><td>${p.o}</td><td class="${cl(p.p)}"><b>${sg(p.p)}</b></td></tr>`).join('')
-    : '<tr><td colspan="6" class="empty">Aucune position ouverte.</td></tr>';
+  const pos = ids.flatMap(i => { try { return JSON.parse(A[i].positions || '[]').map(p => ({ ...p, a:an(i), id:i })); } catch (_) { return []; } });
+  $('tPos').innerHTML = pos.length ? pos.map(p => `<tr><td>${esc(p.a)}</td><td><b>${esc(p.s)}</b></td><td><span class="tag ${p.t === 'BUY' ? 'buy' : 'sell'}">${p.t}</span></td><td>${p.v}</td><td>${p.o}</td><td class="${cl(p.p)}"><b>${sg(p.p)}</b></td>${slTp(p)}</tr>`).join('')
+    : '<tr><td colspan="10" class="empty">Aucune position ouverte.</td></tr>';
 
   if (document.activeElement.closest && document.activeElement.closest('#tTr')) return;
   const shown = list.slice().reverse().slice(0, 200), q = list.filter(t => !t.plan).length;
@@ -535,6 +555,135 @@ function rules(single, start, eq, bal) {
   g('gTg', 'gTgT', eq - sb, sb * (+a.targetPct || 0) / 100, true);
 }
 
+const PLS = [
+ ['1 · Profil du trader', [['g3','Objectif à 3 mois','i'],['g6','Objectif à 6 mois','i'],['g12','Objectif à 12 mois','i'],['avail','Disponibilité horaire','i'],['markets','Marchés tradés','i']]],
+ ['2 · Stratégie', [['assets','Actifs autorisés (virgules)','i'],['setups','Setups autorisés (virgules)','i'],['tf','Timeframes','i']]],
+ ['3 · Règles d’entrée : toutes les conditions obligatoires avant un ordre', [['entry','Checklist d’entrée','t']]],
+ ['4 · Règles de sortie', [['sl','Où est mon SL ?','t'],['tp','Où est mon TP ?','t'],['be','Quand je passe à break-even, quand je coupe','t']]],
+ ['5 · Gestion du risque', [['risk','Risque max par trade (% du capital)','n'],['minRR','R/R minimum prévu (alerte sur positions ouvertes)','n'],['dayLoss','Perte max par jour (%)','n'],['weekLoss','Perte max par semaine (%)','n'],['maxDay','Trades max par jour','n'],['lot','Lot max','n']]],
+ ['6 · Règles de session', [['sess','Heures de trading','i'],['stopLoss','Je coupe la journée après N pertes','n'],['prep','Ma préparation de session','t']]],
+ ['7 · Journal', [['journal','Quoi documenter, à quelle fréquence, quels KPIs je suis','t']]],
+ ['8 · Règles non négociables', [['banEmo','États où je ne trade pas (Impatient, FOMO, Revenge, Stressé)','i'],['noGo','Autres situations où je ne trade PAS (séries de pertes, news, hors session…)','t']]]
+];
+const PLF = {}, PLN = [];
+$('plForm').innerHTML = PLS.map(([h, fs], i) => `<h3 style="margin:16px 0 8px">${h}</h3>` + (i === 0 ? '<div class="d" style="margin-bottom:8px">Capital de départ : <b id="plCap">—</b> (modifiable dans Règles du compte)</div>' : '')
+  + `<div class="grid ${fs.some(f => f[2] === 't') ? 'two' : 'k'}">` + fs.map(([k, l, t]) => { PLF['pl_' + k] = k; if (t === 'n') PLN.push('pl_' + k);
+    return `<div><div class="l">${l}</div>${t === 't' ? `<textarea id="pl_${k}"></textarea>` : `<input id="pl_${k}"${t === 'n' ? ' type="number" step="any"' : ''}>`}</div>`; }).join('') + '</div>').join('');
+const lst = x => String(x || '').split(',').map(v => v.trim().toUpperCase()).filter(Boolean);
+function planCheck(list, p, start) {
+  const day = {}, wk = {}, AS = lst(p.assets), SE = lst(p.setups), BE = lst(p.banEmo);
+  const W = d => { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x.toLocaleDateString('sv-SE'); };
+  return list.filter(t => t.date >= p.from).map(t => {
+    const d = day[t.date] = day[t.date] || { n:0, loss:0, pnl:0 }, w = wk[W(t.date)] = wk[W(t.date)] || { pnl:0 }, v = [], su = t.setup.toUpperCase();
+    if (AS.length && !AS.some(x => t.asset.toUpperCase().startsWith(x))) v.push('Actif hors plan');
+    if (SE.length && !su) v.push('Setup non renseigné'); else if (SE.length && !SE.some(x => su.includes(x))) v.push('Setup hors plan');
+    if (+p.lot > 0 && t.lot > +p.lot) v.push('Lot supérieur au max');
+    if (+p.risk > 0 && start > 0 && t.pnl < 0 && -t.pnl > start * p.risk / 100) v.push('Perte supérieure au risque max');
+    if (+p.maxDay > 0 && d.n >= +p.maxDay) v.push('Au-delà du max par jour');
+    if (+p.stopLoss > 0 && d.loss >= +p.stopLoss) v.push('Trade après ' + p.stopLoss + ' pertes');
+    if (+p.dayLoss > 0 && start > 0 && d.pnl <= -start * p.dayLoss / 100) v.push('Trade après la limite de perte du jour');
+    if (+p.weekLoss > 0 && start > 0 && w.pnl <= -start * p.weekLoss / 100) v.push('Trade après la limite de perte de la semaine');
+    if (BE.length && BE.includes(t.emo.toUpperCase())) v.push('Trade en état interdit (' + t.emo + ')');
+    d.n++; d.loss = t.pnl < 0 ? d.loss + 1 : 0; d.pnl += t.pnl; w.pnl += t.pnl;
+    return { t, v };
+  });
+}
+function drawPlan(single, list, start) {
+  $('plan').hidden = !single; if (!single) return;
+  const a = A[cur], p = a.tradingPlan || {}, lk = !!p.lockedAt;
+  Object.keys(PLF).forEach(id => { const el = $(id); el.readOnly = locked() || lk; if (document.activeElement !== el) el.value = p[PLF[id]] ?? ''; });
+  $('plCap').textContent = fmt(+a.startBalance || start);
+  $('plLock').hidden = lk; $('plNew').hidden = !lk;
+  $('plSt').textContent = lk ? `· Version ${p.v || 1} verrouillée le ${new Date(p.lockedAt).toLocaleDateString('fr-FR')}` : '· Brouillon : aucun trade n’est évalué tant qu’il n’est pas verrouillé';
+  const res = lk ? planCheck(list, p, +a.startBalance || start) : [], n = res.length, ok = res.filter(r => !r.v.length).length;
+  const dec = res.filter(r => r.t.plan), decOk = dec.filter(r => r.t.plan === 'Oui').length, gap = res.filter(r => r.t.plan === 'Oui' && r.v.length);
+  const kp = (l, v, dd, c) => `<div class="card"><div class="l">${l}</div><div class="v ${c || 'b'}">${v}</div><div class="d">${dd}</div></div>`;
+  $('plAud').innerHTML = lk ? kp('Conformité mesurée', n ? Math.round(ok / n * 100) + ' %' : '—', `${ok}/${n} trades conformes depuis le ${esc(p.from)}`)
+    + kp('Conformité déclarée', dec.length ? Math.round(decOk / dec.length * 100) + ' %' : '—', `${dec.length} trade(s) qualifiés`)
+    + kp('Déclarés « Oui » mais hors plan', gap.length, 'Écart entre ce que vous dites et ce que montrent les chiffres', gap.length ? 'r' : 'b')
+    + kp('Journal : à qualifier', res.filter(r => !r.t.plan).length, 'Trades sans « Plan respecté » renseigné') : '';
+  const bad = res.filter(r => r.v.length).reverse().slice(0, 15);
+  $('plTb').innerHTML = !lk ? '<tr><td colspan="4" class="empty">Verrouillez le plan pour lancer le contrôle.</td></tr>'
+    : bad.length ? bad.map(r => `<tr><td>${esc(r.t.date)}</td><td><b>${esc(r.t.asset)}</b></td><td>${esc(r.v.join(' · '))}</td><td>${esc(r.t.plan || '—')}</td></tr>`).join('')
+    : `<tr><td colspan="4" class="empty">${n ? 'Aucun écart au plan.' : 'Aucun trade depuis la signature du plan.'}</td></tr>`;
+}
+const savePlan = patch => { if (locked()) return; setDoc(doc(db, ...P('accounts', cur)), { tradingPlan: patch }, { merge:true }); };
+Object.keys(PLF).forEach(id => $(id).onchange = () => { const p = (A[cur] || {}).tradingPlan || {}; if (p.lockedAt) return;
+  savePlan({ [PLF[id]]: PLN.includes(id) ? (parseFloat($(id).value) || 0) : $(id).value.trim() }); });
+$('plLock').onclick = () => {
+  const p = (A[cur] || {}).tradingPlan || {};
+  if (!p.entry || !p.sl || !p.tp || !(+p.risk > 0)) { $('plMsg').textContent = 'Complétez au minimum : règles d’entrée, SL, TP et risque max par trade.'; return; }
+  if (!confirm('Verrouiller ce plan ? Il devient votre référence : seuls les trades à partir d’aujourd’hui seront évalués.')) return;
+  $('plMsg').textContent = ''; savePlan({ lockedAt: Date.now(), from: new Date().toLocaleDateString('sv-SE'), v: p.v || 1 });
+};
+$('plNew').onclick = () => {
+  const { history, ...snap } = (A[cur] || {}).tradingPlan || {};
+  if (!confirm('Créer une nouvelle version ? L’actuelle est archivée et le contrôle s’arrête jusqu’au prochain verrouillage.')) return;
+  savePlan({ history: (history || []).concat([snap]), lockedAt: null, v: (snap.v || 1) + 1 });
+};
+function slTp(p) {
+  if (!('sl' in p) && !('tp' in p)) return '<td class="d" colspan="4">SL/TP non transmis par l’EA</td>';
+  const sl = +p.sl, tp = +p.tp, o = +p.o, buy = p.t === 'BUY', risk = buy ? o - sl : sl - o, rew = buy ? tp - o : o - tp, al = [];
+  if (!(sl > 0)) al.push('SL manquant'); else if (risk <= 0) al.push('SL mal placé');
+  if (!(tp > 0)) al.push('TP manquant');
+  const rr = sl > 0 && tp > 0 && risk > 0 && rew > 0 ? rew / risk : null, mn = +(((A[p.id] || {}).tradingPlan || {}).minRR) || 0;
+  if (rr != null && mn > 0 && rr < mn) al.push('R/R sous le plan');
+  return `<td>${sl > 0 ? sl : '—'}</td><td>${tp > 0 ? tp : '—'}</td><td><b>${rr != null ? rr.toFixed(2) + 'R' : '—'}</b></td><td>${al.length ? al.map(x => `<span class="tag sell">${x}</span>`).join(' ') : '<span class="tag buy">OK</span>'}</td>`;
+}
+const MSG = { tab:'ann', cat:'trader', dm:null, ann:[], list:[], unsub:null, unA:null, on:false };
+const mk = (...x) => collection(db, ...x);
+const seenKey = () => 'annSeen_' + uid;
+const lsGet = k => { try { return +localStorage.getItem(k) || 0; } catch (_) { return 0; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} };
+const mCat = () => isAdmin ? MSG.cat : ((ME && ME.kind) || '');
+const mName = () => isAdmin ? 'Admin' : ((ME && ME.label) || 'Membre');
+const mBadge = () => { $('bMsgN').textContent = MSG.ann.filter(a => a.by !== uid && a.ts > lsGet(seenKey())).length || ''; };
+function initMsg() {
+  if (MSG.on) return; MSG.on = true;
+  $('mSel').innerHTML = Object.entries(KINDS).map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+  MSG.unA = onSnapshot(query(mk('announcements'), orderBy('ts', 'desc'), limit(50)), sn => { MSG.ann = sn.docs.map(d => ({ id:d.id, ...d.data() })); if (!$('msgp').hidden && MSG.tab === 'ann') lsSet(seenKey(), Date.now()); mBadge(); if (!$('msgp').hidden) drawMsg(); }, () => {});
+}
+function msgOff() { if (MSG.unA) MSG.unA(); if (MSG.unsub) MSG.unsub(); MSG.unA = MSG.unsub = null; MSG.on = false; MSG.ann = []; MSG.list = []; MSG.dm = null; $('msgp').hidden = true; $('bMsgN').textContent = ''; }
+function listenMsg() {
+  if (MSG.unsub) MSG.unsub(); MSG.unsub = null; MSG.list = [];
+  const c = mCat(); let q = null;
+  if (MSG.tab === 'com' && c) q = query(mk('channels', c, 'messages'), orderBy('ts', 'desc'), limit(100));
+  else if (MSG.tab === 'dm') q = isAdmin ? (MSG.dm ? query(mk('dms', MSG.dm, 'messages'), orderBy('ts', 'desc'), limit(100)) : query(mk('dms'), orderBy('lastTs', 'desc'), limit(100))) : query(mk('dms', uid, 'messages'), orderBy('ts', 'desc'), limit(100));
+  if (!q) return drawMsg();
+  MSG.unsub = onSnapshot(q, sn => { MSG.list = sn.docs.map(d => ({ id:d.id, ...d.data() })); drawMsg(); }, () => { MSG.list = []; drawMsg(); });
+}
+function drawMsg() {
+  const t = MSG.tab, c = mCat(), threads = t === 'dm' && isAdmin && !MSG.dm, dt = x => new Date(x || 0).toLocaleString('fr-FR');
+  $('mTabs').innerHTML = [['ann', 'Annonces'], ['com', 'Communauté'], ['dm', isAdmin ? 'Privés' : 'Admin']].map(([k, l]) => `<button data-t="${k}" class="${t === k ? 'on' : ''}">${l}</button>`).join('');
+  $('mSel').hidden = !(isAdmin && t === 'com'); $('mSel').value = MSG.cat;
+  $('mForm').hidden = !(t === 'ann' ? isAdmin : t === 'com' ? !!c : !threads);
+  $('mTxt').placeholder = t === 'ann' ? 'Rédiger une annonce…' : 'Votre message…';
+  let h;
+  if (t === 'ann') h = MSG.ann.length ? MSG.ann.map(a => `<div class="mm"><small>${dt(a.ts)}${isAdmin ? ` · <a href="#" data-del="${esc(a.id)}">supprimer</a>` : ''}</small>${esc(a.text)}</div>`).join('') : '<div class="d">Aucune annonce.</div>';
+  else if (t === 'com' && !c) h = '<div class="d">Aucun espace de discussion pour votre profil.</div>';
+  else if (threads) h = MSG.list.length ? MSG.list.map(x => `<div class="mm"><a href="#" data-th="${esc(x.id)}"><b>${esc(x.name || x.id)}</b></a><small>${dt(x.lastTs)}</small></div>`).join('') : '<div class="d">Aucune conversation.</div>';
+  else h = (t === 'dm' && isAdmin ? '<a href="#" data-th="">← Conversations</a>' : '') + MSG.list.slice().reverse().map(m => `<div class="mm ${m.uid === uid ? 'me' : ''}"><small>${esc(m.name || (m.from === 'admin' ? 'Admin' : 'Membre'))} · ${dt(m.ts)}</small>${esc(m.text)}</div>`).join('');
+  $('mList').innerHTML = h; if (t !== 'ann') $('mList').scrollTop = 1e9;
+}
+$('bMsg').onclick = () => { initMsg(); const was = $('msgp').hidden; $('msgp').hidden = !was; if (was) { if (MSG.tab === 'ann') { lsSet(seenKey(), Date.now()); mBadge(); } listenMsg(); drawMsg(); } };
+$('mClose').onclick = () => { $('msgp').hidden = true; };
+$('mSel').onchange = () => { MSG.cat = $('mSel').value; listenMsg(); };
+$('mTabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; MSG.tab = b.dataset.t; MSG.dm = null; if (MSG.tab === 'ann') { lsSet(seenKey(), Date.now()); mBadge(); } listenMsg(); drawMsg(); };
+$('mList').onclick = e => {
+  const a = e.target.closest('a'); if (!a) return; e.preventDefault();
+  if (a.dataset.del && confirm('Supprimer cette annonce ?')) deleteDoc(doc(db, 'announcements', a.dataset.del)).catch(() => {});
+  else if ('th' in a.dataset) { MSG.dm = a.dataset.th || null; listenMsg(); }
+};
+$('mSend').onclick = async () => {
+  const text = $('mTxt').value.trim(), now = Date.now(); if (!text) return;
+  try {
+    if (MSG.tab === 'ann') await setDoc(doc(mk('announcements')), { text, ts: now, by: uid });
+    else if (MSG.tab === 'com') await setDoc(doc(mk('channels', mCat(), 'messages')), { text, ts: now, uid, name: mName() });
+    else { const to = isAdmin ? MSG.dm : uid; await setDoc(doc(mk('dms', to, 'messages')), { text, ts: now, uid, from: isAdmin ? 'admin' : 'user', name: mName() });
+      await setDoc(doc(db, 'dms', to), isAdmin ? { lastTs: now } : { lastTs: now, name: mName() }, { merge:true }); }
+    $('mTxt').value = '';
+  } catch (_) { alert('Envoi refusé : les règles Firestore pour la messagerie ne sont probablement pas encore publiées.'); }
+};
 $('tabs').onclick = e => { const b = e.target.closest('button'); if (b) { cur = b.dataset.t; render(); } };
 const saveRule = (id, field) => $(id).onchange = () => { if (locked()) return; setDoc(doc(db, ...P('accounts', cur)), { [field]: parseFloat($(id).value) || 0 }, { merge:true }); };
 saveRule('rStart', 'startBalance'); saveRule('rDay', 'dailyPct'); saveRule('rDd', 'ddPct'); saveRule('rTg', 'targetPct');
