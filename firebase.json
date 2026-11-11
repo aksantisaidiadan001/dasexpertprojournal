@@ -5,7 +5,14 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
-      "**/*.log"
+      "**/*.log",
+      "docs/**",
+      "tests/**",
+      "functions/**",
+      "**/*.md",
+      "**/*.mq5",
+      "firestore.rules",
+      "firestore.rules.backup"
     ],
     "rewrites": [
       {
