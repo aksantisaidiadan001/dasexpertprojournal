@@ -218,6 +218,7 @@ const app = initializeApp(CFG);
 const auth = getAuth(app), db = getFirestore(app);
 const ADMIN = 'aksantisaidiadan001@gmail.com';
 const $ = id => document.getElementById(id);
+const Ch = {};
 
 const THEME_KEY = 'dasexpertpro-theme';
 function applyTheme(theme) {
@@ -521,7 +522,7 @@ function analyse(list, start) {
   });
   return o;
 }
-const Ch = {}; Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--mu').trim() || '#91a0b5'; Chart.defaults.font.family = 'Manrope, sans-serif';
+Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--mu').trim() || '#91a0b5'; Chart.defaults.font.family = 'Manrope, sans-serif';
 const gridc = { color:getComputedStyle(document.documentElement).getPropertyValue('--ln').trim() || '#26364d' };
 function chart(id, type, labels, sets, opt = {}) {
   if (Ch[id]) Ch[id].destroy();
