@@ -224,7 +224,7 @@ const THEME_KEY = 'dasexpertpro-theme';
 function applyTheme(theme) {
   const t = theme === 'light' ? 'light' : 'dark';
   document.documentElement.dataset.theme = t;
-  $('bTheme').innerHTML = (t === 'dark' ? '☀' : '◐') + '<span>' + (t === 'dark' ? 'Mode clair' : 'Mode sombre') + '</span>';
+  $('bTheme').innerHTML = (t === 'dark' ? '☀' : '◐') + '<span>' + (t === 'dark' ? 'Paramètres · Mode clair' : 'Paramètres · Mode sombre') + '</span>';
   $('bTheme').setAttribute('aria-label', t === 'dark' ? 'Activer le mode clair' : 'Activer le mode sombre');
   try { localStorage.setItem(THEME_KEY, t); } catch (_) {}
   if (window.Chart) {
