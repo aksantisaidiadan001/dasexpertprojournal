@@ -592,21 +592,32 @@ function subPlan() {
 function planCheck(list, plans, start) {
   const day = {}, wk = {};
   const W = d => { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x.toLocaleDateString('sv-SE'); };
-  return list.map(t => {
-    const p = plans.slice().reverse().find(x => x.from <= t.date); if (!p) return null;
+  const ordered = (list || []).slice().sort((a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0) || String(a.date || '').localeCompare(String(b.date || '')));
+  const activePlans = (plans || []).slice().sort((a, b) => String(a.from).localeCompare(String(b.from)));
+  return ordered.map(t => {
+    const date = String(t.date || '').slice(0, 10);
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return null;
+    const p = activePlans.filter(x => x.from <= date).slice(-1)[0];
+    if (!p) return null;
     const AS = lst(p.assets), SE = lst(p.setups), BE = lst(p.banEmo);
-    const d = day[t.date] = day[t.date] || { n:0, loss:0, pnl:0 }, w = wk[W(t.date)] = wk[W(t.date)] || { pnl:0 }, v = [], su = t.setup.toUpperCase();
-    if (AS.length && !AS.some(x => t.asset.toUpperCase().startsWith(x))) v.push('Actif hors plan');
-    if (SE.length && !su) v.push('Setup non renseigné'); else if (SE.length && !SE.some(x => su.includes(x))) v.push('Setup hors plan');
-    if (+p.lot > 0 && t.lot > +p.lot) v.push('Lot supérieur au max');
-    if (+p.risk > 0 && start > 0 && t.pnl < 0 && -t.pnl > start * p.risk / 100) v.push('Perte supérieure au risque max');
-    if (+p.maxDay > 0 && d.n >= +p.maxDay) v.push('Au-delà du max par jour');
-    if (+p.stopLoss > 0 && d.loss >= +p.stopLoss) v.push('Trade après ' + p.stopLoss + ' pertes');
+    const asset = String(t.asset || '').toUpperCase(), setup = String(t.setup || '').toUpperCase(), emo = String(t.emo || '').trim().toUpperCase();
+    const d = day[date] = day[date] || { n:0, loss:0, pnl:0 }, week = W(date), w = wk[week] = wk[week] || { pnl:0 }, v = [], u = [];
+    if (AS.length && !AS.some(x => asset.startsWith(x))) v.push('Actif hors plan');
+    if (SE.length && !setup) v.push('Setup non renseigné');
+    else if (SE.length && !SE.some(x => setup.includes(x))) v.push('Setup hors plan');
+    if (+p.lot > 0 && Number(t.lot) > +p.lot) v.push('Lot supérieur au max');
+    if (+p.minRR > 0) {
+      if (t.rr !== null && t.rr !== '' && Number.isFinite(Number(t.rr))) { if (Number(t.rr) < +p.minRR) v.push('R/R inférieur au minimum du plan'); }
+      else u.push('R/R non vérifiable (donnée absente)');
+    }
+    if (+p.risk > 0) u.push('Risque prévu non vérifiable (non enregistré à l’ouverture)');
+    if (+p.maxDay > 0 && d.n >= +p.maxDay) v.push('Au-delà du max de trades par jour');
+    if (+p.stopLoss > 0 && d.loss >= +p.stopLoss) v.push('Trade après ' + p.stopLoss + ' pertes consécutives');
     if (+p.dayLoss > 0 && start > 0 && d.pnl <= -start * p.dayLoss / 100) v.push('Trade après la limite de perte du jour');
     if (+p.weekLoss > 0 && start > 0 && w.pnl <= -start * p.weekLoss / 100) v.push('Trade après la limite de perte de la semaine');
-    if (BE.length && BE.includes(t.emo.toUpperCase())) v.push('Trade en état interdit (' + t.emo + ')');
-    d.n++; d.loss = t.pnl < 0 ? d.loss + 1 : 0; d.pnl += t.pnl; w.pnl += t.pnl;
-    return { t, v, ver:p.v };
+    if (emo && BE.includes(emo)) v.push('Trade en état interdit (' + String(t.emo) + ')');
+    d.n++; d.loss = Number(t.pnl) < 0 ? d.loss + 1 : 0; d.pnl += Number(t.pnl) || 0; w.pnl += Number(t.pnl) || 0;
+    return { t, v, u, ver:p.v };
   }).filter(Boolean);
 }
 function drawPlan(single, list, start) { PL.list = list; PL.start = start; renderPlan(); }
@@ -627,16 +638,17 @@ function renderPlan() {
   if (adm && st === 'locked') b = '<button data-a="unlock">Déverrouiller (motif obligatoire)</button>';
   if (adm && st === 'rejected') b = '<button data-a="newv">Ouvrir une nouvelle version</button>';
   $('plBar').innerHTML = b;
-  const plans = plansEff(), lk = plans.length > 0, res = lk ? planCheck(PL.list || [], plans, PL.start || 0) : [], n = res.length, ok = res.filter(r => !r.v.length).length;
+  const plans = plansEff(), lk = plans.length > 0, res = lk ? planCheck(PL.list || [], plans, PL.start || 0) : [], n = res.length, known = res.filter(r => !r.u.length), ok = known.filter(r => !r.v.length).length, unverified = res.filter(r => r.u.length).length;
   const dec = res.filter(r => r.t.plan), decOk = dec.filter(r => r.t.plan === 'Oui').length, gap = res.filter(r => r.t.plan === 'Oui' && r.v.length);
   const kp = (l, x, dd, c) => `<div class="card"><div class="l">${l}</div><div class="v ${c || 'b'}">${x}</div><div class="d">${dd}</div></div>`;
-  $('plAud').innerHTML = lk ? kp('Conformité mesurée', n ? Math.round(ok / n * 100) + ' %' : '—', `${ok}/${n} trades conformes depuis le ${esc(plans[0].from)}`)
+  $('plAud').innerHTML = lk ? kp('Conformité mesurée', known.length ? Math.round(ok / known.length * 100) + ' %' : '—', `${ok}/${known.length} trades évaluables depuis le ${esc(plans[0].from)}`)
     + kp('Conformité déclarée', dec.length ? Math.round(decOk / dec.length * 100) + ' %' : '—', `${dec.length} trade(s) qualifiés`)
     + kp('Déclarés « Oui » mais hors plan', gap.length, 'Écart entre ce qui est déclaré et ce que montrent les chiffres', gap.length ? 'r' : 'b')
+     + kp('Contrôles non vérifiables', unverified, 'Données de risque ou R/R manquantes', unverified ? 'r' : 'b')
     + kp('Journal : à qualifier', res.filter(r => !r.t.plan).length, 'Trades sans « Plan respecté » renseigné') : '';
-  const bad = res.filter(r => r.v.length).reverse().slice(0, 15);
+  const bad = res.filter(r => r.v.length || r.u.length).reverse().slice(0, 15);
   $('plTb').innerHTML = !lk ? '<tr><td colspan="4" class="empty">Aucun plan verrouillé : aucun trade n’est évalué.</td></tr>'
-    : bad.length ? bad.map(r => `<tr><td>${esc(r.t.date)} <span class="d">(v${r.ver})</span></td><td><b>${esc(r.t.asset)}</b></td><td>${esc(r.v.join(' · '))}</td><td>${esc(r.t.plan || '—')}</td></tr>`).join('')
+    : bad.length ? bad.map(r => `<tr><td>${esc(r.t.date)} <span class="d">(v${r.ver})</span></td><td><b>${esc(r.t.asset)}</b></td><td>${esc(r.v.concat((r.u || []).map(x => 'À vérifier : ' + x)).join(' · '))}</td><td>${esc(r.t.plan || '—')}</td></tr>`).join('')
     : `<tr><td colspan="4" class="empty">${n ? 'Aucun écart au plan.' : 'Aucun trade depuis le verrouillage.'}</td></tr>`;
   $('plHist').innerHTML = PL.vs.map(x => `v${x.v} · ${PLL[x.status]}${x.lockedAt ? ' · verrouillé le ' + tsd(x.lockedAt) : ''}`).concat(PL.uls.map(u => `Déverrouillage v${u.fromVersion} → v${u.toVersion} le ${tsd(u.at)} : ${u.reason}`)).map(x => `<div>${esc(x)}</div>`).join('') || 'Aucun historique.';
 }
@@ -646,7 +658,13 @@ $('plBar').onclick = async e => {
   try {
     if (a.a === 'create') await setDoc(V(1), { v:1, status:'draft', templateVersion:(PL.tpl && PL.tpl.version) || 0, content:{ common:(PL.tpl && PL.tpl.rules) || {}, custom:{}, checklist:{ custom:[] } } });
     else if (a.a === 'save') await setDoc(V(v.v), { content:{ custom:plGet() } }, { merge:true });
-    else if (a.a === 'submit') { const c = plGet(); if (!c.entry || !c.sl || !c.tp || !(c.risk > 0)) { alert('Complétez au minimum : règles d’entrée, SL, TP et risque max par trade.'); return; }
+    else if (a.a === 'submit') { const c = plGet();
+      for (const id of PLN) { const raw = $(id).value.trim(); if (!raw) continue; const value = Number(raw), key = PLF[id];
+        if (!Number.isFinite(value) || value < 0 || (['risk','dayLoss','weekLoss'].includes(key) && value > 100) || (['maxDay','stopLoss'].includes(key) && !Number.isInteger(value)) || (key === 'minRR' && value <= 0)) {
+          alert('Valeur invalide pour « ' + key + ' ». Vérifiez les pourcentages (0–100), les nombres entiers et les valeurs positives.'); $(id).focus(); return;
+        }
+      }
+      if (!c.entry || !c.sl || !c.tp || !(c.risk > 0)) { alert('Complétez au minimum : règles d’entrée, SL, TP et risque max par trade.'); return; }
       await setDoc(V(v.v), { status:'submitted', submittedAt:serverTimestamp(), content:{ custom:c } }, { merge:true }); }
     else if (a.a === 'lock') { if (confirm('Approuver et verrouiller ce plan ? Il deviendra la référence de contrôle.')) await setDoc(V(v.v), { status:'locked', lockedAt:serverTimestamp(), ...stamp }, { merge:true }); }
     else if (a.a === 'chg' || a.a === 'rej') { const note = (prompt('Motif ou corrections demandées :') || '').trim(); if (!note) return;
