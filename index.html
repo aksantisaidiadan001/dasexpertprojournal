@@ -573,6 +573,8 @@ $('plForm').innerHTML = PLS.map(([h, fs], i) => `<h3 style="margin:16px 0 8px">$
     return `<div><div class="l">${l}</div>${t === 't' ? `<textarea id="pl_${k}"></textarea>` : `<input id="pl_${k}"${t === 'n' ? ' type="number" step="any"' : ''}>`}</div>`; }).join('') + '</div>').join('');
 const lst = x => String(x || '').split(',').map(v => v.trim().toUpperCase()).filter(Boolean);
 const PL = { un:null, ul:null, ut:null, vs:[], uls:[], tpl:null, eff:null, list:[], start:0 };
+const PL_DIRTY = new Set();
+Object.keys(PLF).forEach(id => $(id).addEventListener('input', () => PL_DIRTY.add(id)));
 const PLC = [['risk','Risque max par trade (%)','n'],['dayLoss','Perte max par jour (%)','n'],['weekLoss','Perte max par semaine (%)','n'],['maxDay','Trades max par jour','n'],['lot','Lot max','n'],['stopLoss','Stop du jour après N pertes','n'],['minRR','R/R minimum','n'],['banEmo','États interdits (virgules)','i']];
 $('plTplF').innerHTML = PLC.map(([k, l, t]) => `<div><div class="l">${l}</div><input id="plc_${k}"${t === 'n' ? ' type="number" step="any"' : ''}></div>`).join('');
 const PLL = { none:'Aucun plan', draft:'Brouillon', submitted:'En attente de validation', changes_requested:'Corrections demandées', rejected:'Refusé', locked:'Verrouillé', archived:'Archivé' };
@@ -582,7 +584,7 @@ const effOf = c => { const cm = (c || {}).common || {}, cu = (c || {}).custom ||
 const plansEff = () => PL.vs.filter(v => v.lockedAt && (v.status === 'locked' || v.status === 'archived') && v.lockedAt.toDate)
   .map(v => ({ ...effOf(v.content), v:v.v, from:v.lockedAt.toDate().toLocaleDateString('sv-SE') })).sort((a, b) => a.from < b.from ? -1 : 1);
 const plGet = () => { const o = {}; Object.keys(PLF).forEach(id => { const x = $(id).value.trim(); o[PLF[id]] = PLN.includes(id) ? num(x) : x; }); return o; };
-function planOff() { ['un', 'ul', 'ut'].forEach(k => { if (PL[k]) PL[k](); PL[k] = null; }); PL.vs = []; PL.uls = []; PL.tpl = null; PL.eff = null; }
+function planOff() { ['un', 'ul', 'ut'].forEach(k => { if (PL[k]) PL[k](); PL[k] = null; }); PL.vs = []; PL.uls = []; PL.tpl = null; PL.eff = null; PL_DIRTY.clear(); }
 function subPlan() {
   planOff(); if (!viewUid) return;
   PL.un = onSnapshot(query(collection(db, 'plans', viewUid, 'versions'), orderBy('v', 'desc')), sn => { PL.vs = sn.docs.map(d => ({ id:d.id, ...d.data() })); renderPlan(); }, () => {});
@@ -629,7 +631,7 @@ function renderPlan() {
   const cm = (v && v.content && v.content.common) || (PL.tpl && PL.tpl.rules) || {}, sm = PLC.filter(([k]) => cm[k]).map(([k, l]) => `${l} : ${cm[k]}`).join(' · ');
   $('plNote').textContent = [sm && 'Règles communes de l’admin : ' + sm, v && v.note && (st === 'changes_requested' || st === 'rejected') ? 'Retour de l’admin : ' + v.note : '', st === 'locked' ? 'Plan verrouillé : seul l’admin peut le déverrouiller, avec un motif.' : ''].filter(Boolean).join('  |  ');
   const cu = (v && v.content && v.content.custom) || {};
-  Object.keys(PLF).forEach(id => { const el = $(id); el.readOnly = !ed; if (document.activeElement !== el) el.value = cu[PLF[id]] ?? ''; });
+  Object.keys(PLF).forEach(id => { const el = $(id); el.readOnly = !ed; if (!PL_DIRTY.has(id) && document.activeElement !== el) el.value = cu[PLF[id]] ?? ''; });
   $('plAdm').hidden = !isAdmin; if (isAdmin) PLC.forEach(([k]) => { const el = $('plc_' + k); if (document.activeElement !== el) el.value = (PL.tpl && PL.tpl.rules && PL.tpl.rules[k]) ?? ''; });
   let b = '';
   if (mine && st === 'none') b = '<button class="pri" data-a="create">Créer mon plan</button>';
@@ -657,7 +659,7 @@ $('plBar').onclick = async e => {
   const v = PL.vs[0], P = (...x) => doc(db, 'plans', viewUid, ...x), V = n => P('versions', String(n)), stamp = { decidedAt:serverTimestamp(), decidedBy:uid };
   try {
     if (a.a === 'create') await setDoc(V(1), { v:1, status:'draft', templateVersion:(PL.tpl && PL.tpl.version) || 0, content:{ common:(PL.tpl && PL.tpl.rules) || {}, custom:{}, checklist:{ custom:[] } } });
-    else if (a.a === 'save') await setDoc(V(v.v), { content:{ custom:plGet() } }, { merge:true });
+    else if (a.a === 'save') { await setDoc(V(v.v), { content:{ custom:plGet() } }, { merge:true }); PL_DIRTY.clear(); }
     else if (a.a === 'submit') { const c = plGet();
       for (const id of PLN) { const raw = $(id).value.trim(); if (!raw) continue; const value = Number(raw), key = PLF[id];
         if (!Number.isFinite(value) || value < 0 || (['risk','dayLoss','weekLoss'].includes(key) && value > 100) || (['maxDay','stopLoss'].includes(key) && !Number.isInteger(value)) || (key === 'minRR' && value <= 0)) {
@@ -665,7 +667,7 @@ $('plBar').onclick = async e => {
         }
       }
       if (!c.entry || !c.sl || !c.tp || !(c.risk > 0)) { alert('Complétez au minimum : règles d’entrée, SL, TP et risque max par trade.'); return; }
-      await setDoc(V(v.v), { status:'submitted', submittedAt:serverTimestamp(), content:{ custom:c } }, { merge:true }); }
+      await setDoc(V(v.v), { status:'submitted', submittedAt:serverTimestamp(), content:{ custom:c } }, { merge:true }); PL_DIRTY.clear(); }
     else if (a.a === 'lock') { if (confirm('Approuver et verrouiller ce plan ? Il deviendra la référence de contrôle.')) await setDoc(V(v.v), { status:'locked', lockedAt:serverTimestamp(), ...stamp }, { merge:true }); }
     else if (a.a === 'chg' || a.a === 'rej') { const note = (prompt('Motif ou corrections demandées :') || '').trim(); if (!note) return;
       await setDoc(V(v.v), { status:a.a === 'chg' ? 'changes_requested' : 'rejected', note, ...stamp }, { merge:true }); }
