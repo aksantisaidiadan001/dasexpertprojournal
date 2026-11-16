@@ -301,13 +301,12 @@ onAuthStateChanged(auth, u => {
 
 function setWho() {
   const me = auth.currentUser;
-  if (!me) { $('who').textContent = ''; return; }
+  if (!me) return;
   const other = viewUid !== uid, opt = $('adminSel').selectedOptions[0];
   const displayName = other ? (isAdmin ? (opt ? opt.textContent : 'Vue administrateur') : lab(viewUid)) : (ME.label || me.email || 'Mon espace');
   $('profileName').textContent = displayName;
   $('profileMeta').textContent = other ? (isOp(viewUid) ? 'Accès gestion' : 'Lecture seule') : (myKind === 'portfolio' ? 'Portefeuille client' : (isAdmin ? 'Administrateur' : me.email));
   $('avatar').textContent = (String(displayName).trim().split(/[\\s@._-]+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('') || 'DA').toUpperCase();
-  $('who').textContent = displayName;
   $('bHome').hidden = isAdmin || !other || home || !myPs().length; const pfSelf = !isAdmin && !other && (myKind === null || myKind === 'portfolio'); document.body.classList.toggle('ro', other || pfSelf); document.body.classList.toggle('inv', (other && !isAdmin && !isOp(viewUid)) || pfSelf); document.body.classList.toggle('op', other && isOp(viewUid)); render();
 }
 function fillSel() {
@@ -569,7 +568,6 @@ function draw() {
   $('kWin').textContent = a.n ? (a.w / a.n * 100).toFixed(1) + ' %' : '—'; $('kCnt').textContent = `${a.n} trade(s) · ${a.w}G / ${a.l}P`;
   $('kPf').textContent = a.gl > 0 ? (a.gp / a.gl).toFixed(2) : a.gp > 0 ? '∞' : '—';
   $('kDd').textContent = a.dd.toFixed(2) + ' %';
-  $('kDis').textContent = a.q ? Math.round(a.qOk / a.q * 100) + ' %' : '—'; $('kDisN').textContent = `${a.q}/${a.n} trades qualifiés`;
 
   const aw = a.w ? a.gp / a.w : 0, al = a.l ? a.gl / a.l : 0, n = a.n || 1, ex = a.w / n * aw - a.l / n * al;
   const rows = [['Espérance par trade', a.n ? sg(ex) : '—', cl(ex)], ['Gain moyen / perte moyenne', al ? (aw / al).toFixed(2) : '—', ''],
