@@ -39,6 +39,12 @@ th{text-align:left;color:var(--mu);font-weight:600;font-size:12px;padding:8px;bo
 .gauge{height:8px;background:var(--p2);border-radius:5px;overflow:hidden;margin:6px 0 2px}.gauge i{display:block;height:100%;background:var(--g)}
 .empty{padding:28px;text-align:center;color:var(--mu)}
 #login{max-width:360px;margin:12vh auto;display:grid;gap:10px}
+.login-sep{display:flex;align-items:center;gap:10px;color:var(--mu);font-size:10px;font-weight:800;letter-spacing:1px}
+.login-sep:before,.login-sep:after{content:"";height:1px;background:var(--ln);flex:1}
+.google-btn{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px;background:var(--p);border:1px solid var(--ln);font-size:13px}
+.google-btn:hover{background:var(--p2);border-color:var(--b)}
+.google-mark{font:800 17px Arial,sans-serif;color:#4285f4;background:#fff;border-radius:50%;width:22px;height:22px;display:grid;place-items:center}
+
 body.inv .pv{display:none!important}body.inv #sTr th:nth-child(n+8),body.inv #sTr td:nth-child(n+8){display:none}
 #admNav button.on{border-color:var(--o);color:var(--o)}
 #home{display:none}body.home #home{display:block}body.home main>section:not(#home){display:none!important}body.home #tabs,body.home #bCsv{display:none}.hm{cursor:pointer}.hm:hover{border-color:#3a4656}
@@ -80,6 +86,8 @@ h1{color:var(--o)}.chart{border-radius:10px}
   <input id="em" type="email" placeholder="E-mail" autocomplete="username" required aria-label="E-mail">
   <input id="pw" type="password" placeholder="Mot de passe" autocomplete="current-password" minlength="8" required aria-label="Mot de passe">
   <button class="pri" style="padding:10px">Se connecter</button>
+  <div class="login-sep"><span>OU</span></div>
+  <button type="button" id="bGoogle" class="google-btn"><span class="google-mark">G</span> Continuer avec Google</button>
   <button type="button" id="bSign" style="padding:10px">Créer un compte</button>
   <button type="button" id="bReset" class="d" style="border:0;background:none">Mot de passe oublié ?</button>
   <div id="lerr" class="r d" role="alert"></div>
@@ -209,13 +217,15 @@ h1{color:var(--o)}.chart{border-radius:10px}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFirestore, collection, doc, onSnapshot, getDocs, setDoc, deleteDoc, writeBatch, serverTimestamp, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const CFG = { apiKey:"AIzaSyDFfsaI85dsAfAqigH0HyKgcGzNuTDQGG8", authDomain:"trading-das.firebaseapp.com", projectId:"trading-das",
   storageBucket:"trading-das.firebasestorage.app", messagingSenderId:"1034073455746", appId:"1:1034073455746:web:43363d623668164984089b" };
 const app = initializeApp(CFG);
 const auth = getAuth(app), db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 const ADMIN = 'aksantisaidiadan001@gmail.com';
 const $ = id => document.getElementById(id);
 const Ch = {};
@@ -247,6 +257,24 @@ const msg = c => ({ 'auth/invalid-credential':'Identifiants incorrects.', 'auth/
   'auth/email-already-in-use':'Un compte existe déjà.', 'auth/weak-password':'Mot de passe trop court (8 min).', 'auth/invalid-email':'E-mail invalide.' }[c] || 'Erreur de connexion.');
 const cred = () => { const e = $('em').value.trim(), p = $('pw').value; if (!e || p.length < 8) { $('lerr').textContent = 'E-mail et mot de passe (8 car. min) requis.'; return null; } return [e, p]; };
 $('login').onsubmit = async e => { e.preventDefault(); const c = cred(); if (!c) return; try { await signInWithEmailAndPassword(auth, ...c); } catch (x) { $('lerr').textContent = msg(x.code); } };
+$('bGoogle').onclick = async () => {
+  $('bGoogle').disabled = true;
+  $('lerr').textContent = '';
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (x) {
+    const errors = {
+      'auth/popup-closed-by-user':'Connexion Google annulée.',
+      'auth/popup-blocked':'La fenêtre Google a été bloquée. Autorisez les fenêtres pop-up puis réessayez.',
+      'auth/unauthorized-domain':'Ce domaine doit être autorisé dans Firebase Authentication.',
+      'auth/operation-not-allowed':'La connexion Google doit être activée dans Firebase Authentication.',
+      'auth/account-exists-with-different-credential':'Un compte existe déjà avec cette adresse. Connectez-vous avec votre méthode habituelle.'
+    };
+    $('lerr').textContent = errors[x.code] || 'Connexion Google impossible. Réessayez.';
+  } finally {
+    $('bGoogle').disabled = false;
+  }
+};
 $('bSign').onclick = async () => { const c = cred(); if (!c) return; try { const r = await createUserWithEmailAndPassword(auth, ...c); sendEmailVerification(r.user).catch(() => {}); } catch (x) { $('lerr').textContent = msg(x.code); } };
 $('bReset').onclick = async () => { const e = $('em').value.trim(); if (!e) { $('lerr').textContent = 'Saisissez votre e-mail.'; return; } try { await sendPasswordResetEmail(auth, e); } catch (_) {} $('lerr').textContent = 'E-mail de réinitialisation envoyé.'; };
 $('bOut').onclick = () => signOut(auth);
