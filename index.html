@@ -7,22 +7,23 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-:root{--bg:#0d1117;--p:#141a22;--p2:#10151c;--ln:#232c38;--tx:#e7eaef;--mu:#8792a2;--g:#3ecf8e;--r:#f0616d;--o:#e3b04b;--b:#6aa7ff;color-scheme:dark}
+:root{--bg:#0b1220;--p:#111c2d;--p2:#172438;--ln:#26364d;--tx:#e8eef7;--mu:#91a0b5;--g:#35c995;--r:#f16d78;--o:#e8b85c;--b:#70a9ff;--side:#0a1424;--side2:#14243a;--shadow:0 12px 32px rgba(0,0,0,.18);color-scheme:dark}
+:root[data-theme="light"]{--bg:#f3f6fb;--p:#ffffff;--p2:#f6f8fc;--ln:#e1e7f0;--tx:#172338;--mu:#69788e;--g:#159b70;--r:#d94e5b;--o:#b47b18;--b:#286ac7;--side:#ffffff;--side2:#edf3fb;--shadow:0 10px 28px rgba(27,48,78,.07);color-scheme:light}
 *{box-sizing:border-box;margin:0}
-body{background:var(--bg);color:var(--tx);font:14px/1.5 Manrope,system-ui,sans-serif;font-variant-numeric:tabular-nums;padding-bottom:48px}
+body{background:var(--bg);color:var(--tx);font:14px/1.55 Manrope,system-ui,sans-serif;font-variant-numeric:tabular-nums;padding:0 0 48px 252px;transition:background .2s,color .2s}
 [hidden]{display:none!important}
-header{position:sticky;top:0;z-index:9;background:rgba(13,17,23,.93);backdrop-filter:blur(8px);border-bottom:1px solid var(--ln);padding:12px 20px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+header{position:sticky;top:0;z-index:9;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--ln);padding:14px 26px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:flex-end;min-height:70px}
 h1{font-size:18px;font-weight:800;color:#facc15}h1 small{display:block;font-size:12px;font-weight:500;color:var(--mu)}
 h2{font-size:14px;font-weight:700;margin-bottom:10px}
-main{max-width:1280px;margin:18px auto;padding:0 16px;display:grid;gap:14px}
-.card{background:var(--p);border:1px solid var(--ln);border-radius:10px;padding:16px}
+main{max-width:1500px;margin:22px auto;padding:0 26px;display:grid;gap:18px}
+.card{background:var(--p);border:1px solid var(--ln);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
 .grid{display:grid;gap:12px}.k{grid-template-columns:repeat(auto-fit,minmax(165px,1fr))}.two{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
 .l{font-size:12px;color:var(--mu);font-weight:600}.v{font-size:24px;font-weight:800;letter-spacing:-.02em}.d{font-size:12px;color:var(--mu)}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .row{display:flex;justify-content:space-between;gap:8px;padding:9px 12px;background:var(--p2);border:1px solid var(--ln);border-radius:8px;font-size:13px}.row span{color:var(--mu)}
 .g{color:var(--g)}.r{color:var(--r)}.o{color:var(--o)}.b{color:var(--b)}
-button{font:inherit;font-size:12px;font-weight:600;color:var(--tx);background:var(--p);border:1px solid var(--ln);border-radius:7px;padding:7px 12px;cursor:pointer}
-button:hover{border-color:#3a4656}button.on{border-color:var(--o);color:var(--o)}button.pri{background:var(--o);color:#1a1405;border-color:var(--o)}
+button{font:inherit;font-size:12px;font-weight:700;color:var(--tx);background:var(--p);border:1px solid var(--ln);border-radius:8px;padding:8px 13px;cursor:pointer;transition:background .18s,border-color .18s,transform .18s}
+button:hover{border-color:var(--b);transform:translateY(-1px)}button.on{border-color:var(--o);color:var(--o);background:var(--side2)}button.pri{background:var(--o);color:#1a1405;border-color:var(--o)}
 :focus-visible{outline:2px solid var(--b);outline-offset:2px}
 input,select,textarea{font:inherit;font-size:13px;color:var(--tx);background:var(--bg);border:1px solid var(--ln);border-radius:6px;padding:6px 8px;width:100%}
 textarea{min-height:64px;resize:vertical}input:focus,select:focus,textarea:focus{outline:none;border-color:var(--o)}
@@ -33,7 +34,7 @@ td input,td select{padding:4px 6px;min-width:90px}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--r);margin-right:6px}.dot.on{background:var(--g)}
 .chart{position:relative;height:280px}
 .wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px;min-width:900px}
-th{text-align:left;color:var(--mu);font-weight:600;font-size:12px;padding:8px;border-bottom:1px solid var(--ln)}td{padding:7px 8px;border-bottom:1px solid #1b232d}
+th{text-align:left;color:var(--mu);font-weight:600;font-size:12px;padding:8px;border-bottom:1px solid var(--ln)}td{padding:9px 8px;border-bottom:1px solid var(--ln)}
 .tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px}.buy{background:rgba(62,207,142,.12);color:var(--g)}.sell{background:rgba(240,97,109,.12);color:var(--r)}
 .gauge{height:8px;background:var(--p2);border-radius:5px;overflow:hidden;margin:6px 0 2px}.gauge i{display:block;height:100%;background:var(--g)}
 .empty{padding:28px;text-align:center;color:var(--mu)}
@@ -48,6 +49,29 @@ body.inv .pv{display:none!important}body.inv #sTr th:nth-child(n+8),body.inv #sT
 .mm{background:var(--bg);border:1px solid var(--ln);border-radius:8px;padding:8px 10px;font-size:13px;white-space:pre-wrap;word-break:break-word}
 .mm small{display:block;color:var(--mu);font-size:11px}.mm.me{border-color:var(--o)}
 #bMsgN:not(:empty){background:#f0616d;color:#fff;border-radius:9px;padding:0 6px;margin-left:5px;font-size:11px}
+
+/* Navigation latérale et thèmes */
+#sidebar{position:fixed;inset:0 auto 0 0;width:252px;background:var(--side);border-right:1px solid var(--ln);z-index:20;display:flex;flex-direction:column;padding:22px 15px 16px;gap:18px}
+#brand{padding:0 10px 17px;border-bottom:1px solid var(--ln)}
+#brand strong{display:block;font-size:15px;letter-spacing:-.4px;color:var(--tx)}
+#brand small{display:block;color:var(--mu);font-size:11px;margin-top:3px}
+#profile{display:flex;align-items:center;gap:10px;padding:12px 10px;background:var(--side2);border:1px solid var(--ln);border-radius:12px;min-width:0}
+#avatar{width:36px;height:36px;flex:0 0 36px;border-radius:11px;background:linear-gradient(135deg,#e8b85c,#d78a35);color:#182235;display:grid;place-items:center;font-weight:800}
+#profileText{min-width:0}#profileName{font-size:12px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#profileMeta{font-size:10px;color:var(--mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sideCaption{font-size:10px;letter-spacing:1.2px;color:var(--mu);font-weight:800;padding:0 10px;text-transform:uppercase}
+#tabs{display:flex;flex-direction:column;align-items:stretch;gap:5px;overflow:auto;min-height:0}
+#tabs button{width:100%;text-align:left;border:1px solid transparent;background:transparent;padding:10px 11px;border-radius:9px;font-size:12px}
+#tabs button.on{background:var(--side2);border-color:var(--ln);color:var(--o)}
+#tabs .dot{width:7px;height:7px}
+#sideBottom{margin-top:auto;border-top:1px solid var(--ln);padding-top:13px;display:grid;gap:8px}
+#bTheme,#bOut{width:100%;display:flex;align-items:center;gap:10px;justify-content:flex-start;background:transparent;border-color:transparent;padding:10px 11px}
+#bTheme:hover,#bOut:hover{background:var(--side2);border-color:var(--ln)}
+#who{display:none}
+#adminSel{max-width:250px}
+h1{color:var(--o)}.chart{border-radius:10px}
+@media(max-width:850px){body{padding-left:0;padding-bottom:92px}#sidebar{inset:auto 0 0;width:100%;height:76px;padding:7px 10px;display:flex;flex-direction:row;align-items:center;gap:8px;border-right:0;border-top:1px solid var(--ln)}#brand,#sideCaption,#profile{display:none}#tabs{flex:1;flex-direction:row;overflow-x:auto;overflow-y:hidden;gap:5px}#tabs button{width:auto;white-space:nowrap;flex:0 0 auto;padding:9px 11px}#sideBottom{margin:0;padding:0;border:0;display:flex;gap:4px}#bTheme,#bOut{width:auto;padding:9px}#bTheme span,#bOut span{display:none}header{padding:12px 15px;justify-content:flex-start}main{padding:0 12px;margin:14px auto;gap:12px}.card{padding:14px}}
+@media(max-width:480px){#sidebar{height:68px}body{padding-bottom:82px}#bTheme,#bOut{font-size:0}#bTheme:before{content:"◐";font-size:17px}#bOut:before{content:"↪";font-size:17px}}
+
 </style>
 </head>
 <body>
@@ -63,9 +87,18 @@ body.inv .pv{display:none!important}body.inv #sTr th:nth-child(n+8),body.inv #sT
 </form>
 
 <div id="app" hidden>
+<aside id="sidebar" aria-label="Navigation principale">
+  <div id="brand"><strong>DAS EXPERT PRO</strong><small>Trading Journal · Workspace</small></div>
+  <div id="profile"><div id="avatar">DA</div><div id="profileText"><div id="profileName">Mon espace</div><div id="profileMeta">Profil connecté</div></div></div>
+  <div id="sideCaption">Navigation</div>
+  <div id="tabs" class="bar"></div>
+  <div id="sideBottom">
+    <button id="bTheme" type="button" aria-label="Changer le thème">◐ <span>Mode clair</span></button>
+    <button id="bOut" type="button">↪ <span>Déconnexion</span></button>
+  </div>
+</aside>
 <header>
-  <h1>Journal de Trading Pro<small>Suivi des comptes en direct</small></h1>
-  <div class="bar"><select id="adminSel" hidden aria-label="Choisir un trader"></select><button id="bMsg">Messages<span id="bMsgN"></span></button><button id="bAdm" class="pri" hidden>Console admin</button><div id="tabs" class="bar"></div><button id="bHome" hidden>← Mes portefeuilles</button><span id="who" class="d"></span><button id="bCsv" class="pv">Exporter CSV</button><button id="bOut">Déconnexion</button></div>
+  <div class="bar"><select id="adminSel" hidden aria-label="Choisir un trader"></select><button id="bMsg">Messages<span id="bMsgN"></span></button><button id="bAdm" class="pri" hidden>Console admin</button><button id="bHome" hidden>← Mes portefeuilles</button><button id="bCsv" class="pv">Exporter CSV</button></div>
 </header>
 <main>
   <section class="card pv" id="banner" hidden>
@@ -185,6 +218,23 @@ const app = initializeApp(CFG);
 const auth = getAuth(app), db = getFirestore(app);
 const ADMIN = 'aksantisaidiadan001@gmail.com';
 const $ = id => document.getElementById(id);
+
+const THEME_KEY = 'dasexpertpro-theme';
+function applyTheme(theme) {
+  const t = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  $('bTheme').innerHTML = (t === 'dark' ? '☀' : '◐') + '<span>' + (t === 'dark' ? 'Mode clair' : 'Mode sombre') + '</span>';
+  $('bTheme').setAttribute('aria-label', t === 'dark' ? 'Activer le mode clair' : 'Activer le mode sombre');
+  try { localStorage.setItem(THEME_KEY, t); } catch (_) {}
+  if (window.Chart) {
+    Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--mu').trim();
+    const gc = getComputedStyle(document.documentElement).getPropertyValue('--ln').trim();
+    Object.values(Ch || {}).forEach(c => { if (c && c.options && c.options.scales) { Object.values(c.options.scales).forEach(axis => { if (axis.grid) axis.grid.color = gc; }); c.update('none'); } });
+  }
+}
+try { applyTheme(localStorage.getItem(THEME_KEY) || 'dark'); } catch (_) { applyTheme('dark'); }
+$('bTheme').onclick = () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2});
 const sg = n => (n > 0 ? '+' : '') + fmt(n);
@@ -236,7 +286,11 @@ function setWho() {
   const me = auth.currentUser;
   if (!me) { $('who').textContent = ''; return; }
   const other = viewUid !== uid, opt = $('adminSel').selectedOptions[0];
-  $('who').textContent = other ? (isAdmin ? 'Vue admin : ' + (opt ? opt.textContent : '') + ' (' + (isOp(viewUid) ? 'gestion' : 'lecture seule') + ')' : lab(viewUid) + (isOp(viewUid) ? ' · gestion' : ' · lecture seule')) : (myKind === 'portfolio' ? (ME.label || 'Portefeuille') + ' · lecture seule' : me.email);
+  const displayName = other ? (isAdmin ? (opt ? opt.textContent : 'Vue administrateur') : lab(viewUid)) : (ME.label || me.email || 'Mon espace');
+  $('profileName').textContent = displayName;
+  $('profileMeta').textContent = other ? (isOp(viewUid) ? 'Accès gestion' : 'Lecture seule') : (myKind === 'portfolio' ? 'Portefeuille client' : (isAdmin ? 'Administrateur' : me.email));
+  $('avatar').textContent = (String(displayName).trim().split(/[\\s@._-]+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('') || 'DA').toUpperCase();
+  $('who').textContent = displayName;
   $('bHome').hidden = isAdmin || !other || home || !myPs().length; const pfSelf = !isAdmin && !other && (myKind === null || myKind === 'portfolio'); document.body.classList.toggle('ro', other || pfSelf); document.body.classList.toggle('inv', (other && !isAdmin && !isOp(viewUid)) || pfSelf); document.body.classList.toggle('op', other && isOp(viewUid)); render();
 }
 function fillSel() {
@@ -467,8 +521,8 @@ function analyse(list, start) {
   });
   return o;
 }
-const Ch = {}; Chart.defaults.color = '#8792a2'; Chart.defaults.font.family = 'Manrope, sans-serif';
-const gridc = { color:'#1c2430' };
+const Ch = {}; Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--mu').trim() || '#91a0b5'; Chart.defaults.font.family = 'Manrope, sans-serif';
+const gridc = { color:getComputedStyle(document.documentElement).getPropertyValue('--ln').trim() || '#26364d' };
 function chart(id, type, labels, sets, opt = {}) {
   if (Ch[id]) Ch[id].destroy();
   Ch[id] = new Chart($(id), { type, data:{ labels, datasets:sets }, options:Object.assign({ responsive:true, maintainAspectRatio:false, animation:false, interaction:{ mode:'index', intersect:false },
