@@ -625,7 +625,7 @@ function planCheck(list, plans, start) {
 function drawPlan(single, list, start) { PL.list = list; PL.start = start; renderPlan(); }
 function renderPlan() {
   $('plan').hidden = !viewUid; if (!viewUid) return;
-  const v = PL.vs[0], st = v ? v.status : 'none', mine = viewUid === uid && !locked(), ed = mine && (st === 'draft' || st === 'changes_requested'), adm = isAdmin && viewUid !== uid;
+  const v = PL.vs[0], st = v ? v.status : 'none', mine = viewUid === uid && !locked(), ed = mine && (st === 'none' || st === 'draft' || st === 'changes_requested'), adm = isAdmin && viewUid !== uid;
   const act = PL.vs.find(x => x.status === 'locked'); PL.eff = act ? effOf(act.content) : null;
   $('plSt').textContent = v ? `· Version ${v.v} · ${PLL[st]}` : '· Aucun plan';
   const cm = (v && v.content && v.content.common) || (PL.tpl && PL.tpl.rules) || {}, sm = PLC.filter(([k]) => cm[k]).map(([k, l]) => `${l} : ${cm[k]}`).join(' · ');
@@ -658,7 +658,7 @@ $('plBar').onclick = async e => {
   const a = (e.target.closest('button') || {}).dataset; if (!a) return;
   const v = PL.vs[0], P = (...x) => doc(db, 'plans', viewUid, ...x), V = n => P('versions', String(n)), stamp = { decidedAt:serverTimestamp(), decidedBy:uid };
   try {
-    if (a.a === 'create') await setDoc(V(1), { v:1, status:'draft', templateVersion:(PL.tpl && PL.tpl.version) || 0, content:{ common:(PL.tpl && PL.tpl.rules) || {}, custom:{}, checklist:{ custom:[] } } });
+    if (a.a === 'create') { await setDoc(V(1), { v:1, status:'draft', templateVersion:(PL.tpl && PL.tpl.version) || 0, content:{ common:(PL.tpl && PL.tpl.rules) || {}, custom:plGet(), checklist:{ custom:[] } } }); PL_DIRTY.clear(); }
     else if (a.a === 'save') { await setDoc(V(v.v), { content:{ custom:plGet() } }, { merge:true }); PL_DIRTY.clear(); }
     else if (a.a === 'submit') { const c = plGet();
       for (const id of PLN) { const raw = $(id).value.trim(); if (!raw) continue; const value = Number(raw), key = PLF[id];
