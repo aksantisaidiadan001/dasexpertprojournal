@@ -596,7 +596,7 @@ function planCheck(list, plans, start) {
   const activePlans = (plans || []).slice().sort((a, b) => String(a.from).localeCompare(String(b.from)));
   return ordered.map(t => {
     const date = String(t.date || '').slice(0, 10);
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
     const p = activePlans.filter(x => x.from <= date).slice(-1)[0];
     if (!p) return null;
     const AS = lst(p.assets), SE = lst(p.setups), BE = lst(p.banEmo);
