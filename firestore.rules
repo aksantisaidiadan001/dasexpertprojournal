@@ -1,0 +1,175 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function isAdmin() {
+      return signedIn() && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() == 'aksantisaidiadan001@gmail.com';
+    }
+    function isInvestorOf(spaceUid) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/spaces/$(spaceUid))
+        && get(/databases/$(database)/documents/spaces/$(spaceUid)).data.get('investorUid', '') == request.auth.uid
+        && get(/databases/$(database)/documents/spaces/$(spaceUid)).data.get('active', true) != false;
+    }
+    function isTraderOf(spaceUid) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/spaces/$(spaceUid))
+        && get(/databases/$(database)/documents/spaces/$(spaceUid)).data.get('traderUid', '') == request.auth.uid
+        && get(/databases/$(database)/documents/spaces/$(spaceUid)).data.get('active', true) != false;
+    }
+    function kindOf(u) {
+      return (exists(/databases/$(database)/documents/spaces/$(u))
+          && get(/databases/$(database)/documents/spaces/$(u)).data.get('active', true) != false)
+        ? get(/databases/$(database)/documents/spaces/$(u)).data.get('kind', '')
+        : '';
+    }
+    function inChannel(k) { return isAdmin() || (signedIn() && kindOf(request.auth.uid) == k); }
+    function okText() {
+      return request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 1000
+        && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Trades : qualification (journal) et données d'ouverture ajoutées UNE SEULE FOIS par l'EA
+    function qualOk() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['setup', 'followedPlan', 'emotion', 'notes', 'prepId']);
+    }
+    function backfillOk(aff) {
+      return (!('posId' in aff) || !('posId' in resource.data))
+        && (!('openTime' in aff) || !('openTime' in resource.data))
+        && (!('openPrice' in aff) || !('openPrice' in resource.data))
+        && (!('closePrice' in aff) || !('closePrice' in resource.data))
+        && (!('slO' in aff) || !('slO' in resource.data))
+        && (!('tpO' in aff) || !('tpO' in resource.data));
+    }
+    function ownerTradeOk() {
+      let aff = request.resource.data.diff(resource.data).affectedKeys();
+      return aff.hasOnly(['setup', 'followedPlan', 'emotion', 'notes', 'prepId',
+                          'posId', 'openTime', 'openPrice', 'closePrice', 'slO', 'tpO'])
+        && backfillOk(aff);
+    }
+
+    match /spaces/{uid} {
+      allow read: if isAdmin() || isOwner(uid) || (signedIn() && (resource.data.get('investorUid', '') == request.auth.uid || resource.data.get('traderUid', '') == request.auth.uid));
+      allow write: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isOwner(uid);
+
+      match /accounts/{document=**} {
+        allow read: if isOwner(uid) || isAdmin() || isInvestorOf(uid) || isTraderOf(uid);
+      }
+      match /accounts/{acc} {
+        allow write: if isOwner(uid);
+      }
+      // Autres sous-collections (snapshots...) : écriture propriétaire, sauf trades et ptrack
+      match /accounts/{acc}/{sub}/{d=**} {
+        allow write: if isOwner(uid) && !(sub in ['trades', 'ptrack']);
+      }
+      // Trades : création par l'EA ; ensuite les résultats ne sont plus modifiables ; pas de suppression
+      match /accounts/{acc}/trades/{t} {
+        allow create: if isOwner(uid);
+        allow update: if (isOwner(uid) && ownerTradeOk())
+                      || ((isTraderOf(uid) || isAdmin()) && qualOk());
+      }
+      // Suivi des positions : valeurs initiales figées, événements en ajout seulement
+      match /accounts/{acc}/ptrack/{id} {
+        allow create: if isOwner(uid);
+        allow update: if isOwner(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['slLive', 'tpLive', 'updatedAt']);
+        match /changes/{c} {
+          allow create: if isOwner(uid);
+        }
+      }
+    }
+
+    // Annonces, communauté, messages privés
+    match /announcements/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /channels/{k}/messages/{id} {
+      allow read: if inChannel(k);
+      allow create: if inChannel(k) && okText())
+        && request.resource.data.keys().hasOnly(['text', 'ts', 'uid', 'name']);
+      allow delete: if isAdmin();
+    }
+    match /dms/{u} {
+      allow read, write: if isOwner(u) || isAdmin();
+      match /messages/{id} {
+        allow read: if isOwner(u) || isAdmin();
+        allow create: if okText()
+          && request.resource.data.keys().hasOnly(['text', 'ts', 'uid', 'from', 'name'])
+          && ((isOwner(u) && request.resource.data.from == 'user')
+              || (isAdmin() && request.resource.data.from == 'admin'));
+      }
+    }
+
+    // Plan de trading : modèle admin, versions, journal des déverrouillages
+    match /config/planTemplate {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /plans/{u}/versions/{v} {
+      allow read: if isOwner(u) || isAdmin();
+      allow create: if isOwner(u) && v == '1'
+        && request.resource.data.status == 'draft'
+        && request.resource.data.content.common == (
+             exists(/databases/$(database)/documents/config/planTemplate)
+             ? get(/databases/$(database)/documents/config/planTemplate).data.rules : {});
+      allow create: if isAdmin() && request.resource.data.status == 'draft';
+      allow update: if isOwner(u)
+        && resource.data.status in ['draft', 'changes_requested']
+        && request.resource.data.status in ['draft', 'changes_requested', 'submitted']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'status', 'submittedAt'])
+        && request.resource.data.content.common == resource.data.content.common;
+      allow update: if isAdmin() && resource.data.status == 'submitted'
+        && request.resource.data.status in ['locked', 'changes_requested', 'rejected']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedAt', 'decidedBy', 'lockedAt', 'note'])
+        && request.resource.data.decidedAt == request.time;
+      allow update: if isAdmin() && resource.data.status == 'locked'
+        && request.resource.data.status == 'archived'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'archivedAt', 'unlockId'])
+        && existsAfter(/databases/$(database)/documents/plans/$(u)/unlocks/$(request.resource.data.unlockId));
+      allow delete: if false;
+    }
+    match /plans/{u}/unlocks/{id} {
+      allow read: if isOwner(u) || isAdmin();
+      allow create: if isAdmin() && request.resource.data.reason is string
+        && request.resource.data.reason.size() >= 10
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.at == request.time;
+      allow update, delete: if false;
+    }
+
+    // Préparations avant trade (création seule) et preuves (images compressées, sans Storage)
+    match /preparations/{u}/items/{id} {
+      allow read: if isOwner(u) || isAdmin() || isTraderOf(u);
+      allow create: if isOwner(u) && request.resource.data.uid == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+      match /proofs/{p} {
+        allow read: if isOwner(u) || isAdmin();
+        allow create: if isOwner(u)
+          && request.resource.data.keys().hasOnly(['data', 'step', 'name', 'createdAt'])
+          && request.resource.data.data is string && request.resource.data.data.size() < 800000
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+    }
+    // Confirmations manuelles par l'admin d'une étape déclarée
+    match /confirmations/{u}/items/{k} {
+      allow read: if isOwner(u) || isAdmin();
+      allow create: if isAdmin() && request.resource.data.by == request.auth.uid
+        && request.resource.data.at == request.time;
+      allow update, delete: if false;
+    }
+  }
+}
